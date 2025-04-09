@@ -199,14 +199,19 @@ function plot_field(field::Field; arrow_length::Union{Float64, Nothing}=nothing)
         arrow_v[i, j] = arrow_length * sin(theta)
     end
 
+    # Compute the extended limits: one bin extra on each side.
+    xlims = (x_coords[1] - bin_size/2, x_coords[end] + bin_size/2)
+    ylims = (y_coords[1] - bin_size/2, y_coords[end] + bin_size/2)
+
     # Create the heatmap colored by velocity magnitude.
     p = heatmap(x_coords, y_coords, mag',
         aspect_ratio = 1,
-        colorbar_title = "Speed",
+        colorbar_title = "Speed (m/s)",
         xlabel = "x′", ylabel = "y′",
-        title = "Averaged Velocity Field")
+        xlims = xlims,
+        ylims = ylims)
 
-    # Create meshgrid-like arrays for quiver.
+    # Create meshgrid-like arrays for quiver overlay.
     X = repeat(x_coords, 1, n_bins_y)
     Y = repeat(y_coords', n_bins_x, 1)
 
@@ -215,8 +220,8 @@ function plot_field(field::Field; arrow_length::Union{Float64, Nothing}=nothing)
         quiver = (vec(arrow_u), vec(arrow_v)),
         color = :white, lw = 1, arrow = true)
 
+    # Display and save the plot.
     display(p)
-
     plot_name = "velocity_field.png"
     println("Saved plot $plot_name")
     flush(stdout)
