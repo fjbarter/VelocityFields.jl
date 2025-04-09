@@ -145,6 +145,58 @@ function generate_field(dataset_dir::String, plane::Geometry.Plane; bin_size::Un
     return Field(avg_field, (x_min, y_min), bin_size)
 end
 
+function custom_quiver!(X::AbstractVector, Y::AbstractVector, U::AbstractVector, V::AbstractVector;
+                          headwidth::Float64 = 3.0, headlength::Float64 = 5.0,
+                          linewidth::Float64 = 1.0, color = :white)
+    n = length(X)
+    for i in 1:n
+        # Compute the length of the arrow.
+        L = sqrt(U[i]^2 + V[i]^2)
+        if L == 0
+            continue  # Skip arrows with zero magnitude.
+        end
+
+        # Normalize the arrow direction.
+        ux = U[i] / L
+        uy = V[i] / L
+
+        # Define the arrowhead length in data units.
+        # Here we interpret headlength as a multiplier on the base shaft width (linewidth)
+        head_len = headlength * linewidth
+
+        # Determine the end of the shaft where the arrowhead begins.
+        x_base = X[i] + (L - head_len) * ux
+        y_base = Y[i] + (L - head_len) * uy
+
+        # Draw the arrow shaft as a line from the base (X[i], Y[i]) to (x_base, y_base).
+        plot!([X[i], x_base], [Y[i], y_base], lw=linewidth, color=color)
+
+        # Compute the arrow tip (end of the arrow).
+        x_tip = X[i] + L * ux
+        y_tip = Y[i] + L * uy
+
+        # Compute a vector perpendicular to the arrow direction.
+        perp_x = -uy
+        perp_y = ux
+
+        # Define the arrowhead width (again, as a multiplier on the base line width).
+        hw = headwidth * linewidth
+
+        # Calculate the left and right base corners of the arrowhead.
+        x_left  = x_base + (hw/2) * perp_x
+        y_left  = y_base + (hw/2) * perp_y
+        x_right = x_base - (hw/2) * perp_x
+        y_right = y_base - (hw/2) * perp_y
+
+        # The arrowhead is drawn as a filled triangle defined by the vertices:
+        # (x_tip, y_tip), (x_left, y_left), (x_right, y_right)
+        arrow_x = [x_tip, x_left, x_right]
+        arrow_y = [y_tip, y_left, y_right]
+        plot!(arrow_x, arrow_y, seriestype = :shape, fillcolor = color, linecolor = color)
+    end
+    return nothing
+end
+
 """
     plot_field(field::Field; arrow_length::Union{Float64, Nothing}=nothing)
 
@@ -199,7 +251,11 @@ function plot_field(field::Field; arrow_length::Union{Float64, Nothing}=nothing)
         arrow_v[i, j] = arrow_length * sin(theta)
     end
 
-    # Compute the extended limits: one bin extra on each side.
+    # # Calculate extended limits so that an extra bin margin appears on each side.
+    # xlims = (x_origin - bin_size, x_origin + n_bins_x * bin_size + bin_size)
+    # ylims = (y_origin - bin_size, y_origin + n_bins_y * bin_size + bin_size)
+
+    # Compute the limits to line the edges up.
     xlims = (x_coords[1] - bin_size/2, x_coords[end] + bin_size/2)
     ylims = (y_coords[1] - bin_size/2, y_coords[end] + bin_size/2)
 
@@ -216,9 +272,13 @@ function plot_field(field::Field; arrow_length::Union{Float64, Nothing}=nothing)
     Y = repeat(y_coords', n_bins_x, 1)
 
     # Overlay arrows.
-    quiver!(vec(X), vec(Y),
-        quiver = (vec(arrow_u), vec(arrow_v)),
-        color = :white, lw = 1, arrow = true)
+    custom_quiver!(
+        vec(X), vec(Y),
+        vec(arrow_u), vec(arrow_v);
+        color=:white,
+        linewidth=1,
+        headwidth=arrow_length * 0.2,
+        headlength=arrow_length * 0.2)
 
     # Display and save the plot.
     display(p)
