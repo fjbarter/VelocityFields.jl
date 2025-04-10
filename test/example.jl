@@ -7,20 +7,20 @@ using VelocityFields
 
 directory = "post"
 
-ref_point = [0.0, 0.0, 0.0]
-normal_vector = [1.0, 0.0, 0.0]
+# ref_point = [0.0, 0.0, 0.0]
+# normal_vector = [1.0, 0.0, 0.0]
 
-plane = Plane(ref_point, normal_vector)
+# plane = Plane(ref_point, normal_vector)
 
-# Generate the Field instance.
-@time field = generate_field(directory, plane; bin_size=0.005)
+# # Generate the Field instance.
+# @time field = generate_field(directory, plane; bin_size=0.005)
 
-# origin = [0.0, 0.0, 0.0]
-# axis_vector = [0.0, 0.0, 0.08]
+origin = [0.0, 0.0, 0.0]
+axis_vector = [0.0, 0.0, 0.08]
 
-# cylinder = Cylinder(origin, axis_vector)
+cylinder = Cylinder(origin, axis_vector)
 
-# @time field = generate_field(directory, cylinder; bin_size=0.005)
+@time field = generate_field(directory, cylinder; bin_size=0.005)
 
 # Plot the field.
 plot_field(field)

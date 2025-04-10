@@ -46,9 +46,15 @@ function process_file_helper(file::String, geom, bin_size_reciprocal::Float64)
             # Use r (column 1) and z (column 3) as the binned coordinates.
             x = pts[i, 1]  # radial coordinate
             y = pts[i, 3]  # axial coordinate
-            # Average the velocity components corresponding to radial and axial directions.
-            # (Assuming velocities were rotated similarly, so radial = first component and axial = third.)
-            vel = [vels[i, 1], vels[i, 3]]
+            # Get the rotated velocity (in [vₓ′, vᵧ′, v_z′] form).
+            v_rot = vels[i, :]
+            # Retrieve the polar angle from the transformed point (column 2) -- this is θ.
+            θ = pts[i, 2]
+            # Project the in-plane velocity [vₓ′, vᵧ′] onto the radial direction.
+            v_r = cos(θ) * v_rot[1] + sin(θ) * v_rot[2]
+            # Axial (z) velocity remains the same.
+            v_z = v_rot[3]
+            vel = [v_r, v_z]
         else
             error("Unsupported geometry type in process_file_helper.")
         end
@@ -111,7 +117,7 @@ function generate_field(dataset_dir::String, geom; bin_size::Union{Float64,Nothi
     ds = DataSet(dataset_dir)
     
     # If no bin_size is provided, estimate one using the first file.
-    if bin_size === nothing
+    if isnothing(bin_size)
         first_file = ds.files[1]
         data_first = Geometry.transform_file_data(first_file, geom)
         pts = data_first[:points]
