@@ -14,17 +14,18 @@ using .Plot
 using .FieldModule
 
 # External imports
-using Packing3D
+using Packing3D # Default public API
+using Packing3D: get_mesh_bounds # Custom function retrieval
 using Distributed
 
-export generate_field, plot_field, Plane, Field
+export generate_field, plot_field, Plane, Cylinder, Field
 
 # --- Helper function for per-file processing ---
 # Processes an individual file to compute a dictionary of bin accumulations.
-function process_file_helper(file::String, plane::Geometry.Plane, bin_size_reciprocal::Float64)
+function process_file_helper(file::String, geom, bin_size_reciprocal::Float64)
     local_dict = Dict{Tuple{Int,Int}, Tuple{Vector{Float64}, Int}}()
-    # Transform file data into the plane’s coordinate system.
-    data = Geometry.transform_file_data(file, plane)
+    # Transform file data using our generic transform routine.
+    data = Geometry.transform_file_data(file, geom)
     pts = data[:points]
     if !haskey(data[:point_data], :v)
         @warn "File $file does not contain velocity data under key :v. Skipping file."
@@ -34,13 +35,27 @@ function process_file_helper(file::String, plane::Geometry.Plane, bin_size_recip
     num_particles = size(pts, 1)
     
     for i in 1:num_particles
-        x = pts[i, 1]  # x' coordinate
-        y = pts[i, 2]  # y' coordinate
+        if geom isa Geometry.Plane
+            # For a plane: use x' and y' (columns 1 and 2).
+            x = pts[i, 1]
+            y = pts[i, 2]
+            # In-plane velocity is given by the first two components.
+            vel = vels[i, 1:2]
+        elseif geom isa Geometry.Cylinder
+            # For a cylinder: after transformation, points are [r, θ, z].
+            # Use r (column 1) and z (column 3) as the binned coordinates.
+            x = pts[i, 1]  # radial coordinate
+            y = pts[i, 3]  # axial coordinate
+            # Average the velocity components corresponding to radial and axial directions.
+            # (Assuming velocities were rotated similarly, so radial = first component and axial = third.)
+            vel = [vels[i, 1], vels[i, 3]]
+        else
+            error("Unsupported geometry type in process_file_helper.")
+        end
         # Compute provisional bin indices using floor division.
         i_bin = floor(Int, x * bin_size_reciprocal)
         j_bin = floor(Int, y * bin_size_reciprocal)
-        # Accumulate the in-plane velocity (first two components).
-        vel = vels[i, 1:2]
+        
         key = (i_bin, j_bin)
         if haskey(local_dict, key)
             sum_vel, count = local_dict[key]
@@ -51,6 +66,7 @@ function process_file_helper(file::String, plane::Geometry.Plane, bin_size_recip
     end
     return local_dict
 end
+
 
 # --- Merge function for dictionaries ---
 # Combines two dictionaries by adding velocity sums and counts for common keys.
@@ -67,68 +83,70 @@ function merge_dicts(d1::Dict{Tuple{Int,Int}, Tuple{Vector{Float64}, Int}},
     return d1
 end
 
+
 """
-    generate_field(dataset_dir::String, plane::Plane; bin_size::Union{Float64,Nothing}=nothing)
+    generate_field(dataset_dir::String, geom; bin_size::Union{Float64,Nothing}=nothing, relative_to_mesh::Bool=false)
 
-Processes all VTK files in the provided directory (`dataset_dir`) to generate a Field instance.
+Processes all VTK files in the given directory (`dataset_dir`) to generate a Field instance.
 For each file, it:
-  1. Reads the file and transforms its data into the coordinate system defined by `plane`.
-  2. Computes provisional bin indices (based on a given bin_size or one estimated from the first file)
-     and accumulates the in-plane (x′, y′) velocity vectors.
-
+  1. Reads the file and transforms its data into the coordinate system defined by `geom` (either a Plane or a Cylinder).
+  2. Computes provisional bin indices (using a provided or estimated bin_size) and accumulates the appropriate 2D velocity components:
+       - For a Plane: averages the in-plane (x′, y′) velocity.
+       - For a Cylinder: averages the radial and axial (r, z) velocity.
+       
 The function uses a parallel map–reduce strategy:
-  - A helper function processes each file independently (using pmap).
-  - The resulting local dictionaries are merged to form a global accumulator.
-  - Global min/max bin indices are used to compute the true lower-left coordinate (origin) and grid dimensions.
+  - Each file is processed independently using `pmap` (via `process_file_helper`).
+  - Local dictionaries are merged to form a global accumulator.
+  - Global min/max provisional bin indices determine the true lower-left coordinate and grid dimensions.
   - A dense grid (initialized with NaNs for empty bins) is filled with averaged velocity values.
 
-Returns a Field instance that encapsulates:
-  - `avg_field`: the 3D average velocity field (size: [n_bins_x, n_bins_y, 2]),
-  - `origin`: a tuple (x_min, y_min) with the true lower-left coordinates,
-  - `bin_size`: the bin size used.
+Returns a Field instance encapsulating:
+  - `avg_field`: the averaged velocity field (size: [n_bins_x, n_bins_y, 2]),
+  - `origin`: a tuple (x_min, y_min) representing the true lower-left coordinate of the field,
+  - `bin_size`: the bin size used,
+  - `geometry_type`: a Symbol indicating the analysis type (:plane or :cylindrical).
 """
-function generate_field(dataset_dir::String, plane::Geometry.Plane; bin_size::Union{Float64,Nothing}=nothing)
+function generate_field(dataset_dir::String, geom; bin_size::Union{Float64,Nothing}=nothing)
     # Load dataset info using our DataSet module.
     ds = DataSet(dataset_dir)
-
+    
     # If no bin_size is provided, estimate one using the first file.
     if bin_size === nothing
         first_file = ds.files[1]
-        data_first = Geometry.transform_file_data(first_file, plane)
+        data_first = Geometry.transform_file_data(first_file, geom)
         pts = data_first[:points]
-        xs = pts[:, 1] # use the x' coordinates
+        # For a Plane, use x' (column 1); for a Cylinder, use the radial coordinate (also column 1).
+        xs = pts[:, 1]
         span = maximum(xs) - minimum(xs)
-        bin_size = 0.05 * span  # 5% of the x-span; adjust as needed.
+        bin_size = 0.05 * span   # 5% of the span; adjust as needed.
     end
-
     # Precompute reciprocal for efficiency.
     bin_size_reciprocal = 1 / bin_size
-
-    # Process each file in parallel using pmap.
-    # Each worker processes one file and returns a dictionary of bin accumulations.
-    local_dicts = pmap(file -> process_file_helper(file, plane, bin_size_reciprocal), ds.files)
-
+    
+    # Process each file in parallel (each returns a dictionary of bin accumulations).
+    local_dicts = pmap(file -> process_file_helper(file, geom, bin_size_reciprocal), ds.files)
+    
     # Merge all local dictionaries into a single global dictionary.
     global_dict = reduce(merge_dicts, local_dicts)
-
-    # Extract the global min and max provisional bin indices.
+    
+    # Extract global min and max provisional bin indices.
     all_i_bins = [k[1] for k in keys(global_dict)]
     all_j_bins = [k[2] for k in keys(global_dict)]
     global_min_i = minimum(all_i_bins)
     global_min_j = minimum(all_j_bins)
     global_max_i = maximum(all_i_bins)
     global_max_j = maximum(all_j_bins)
-
+    
     n_bins_i = global_max_i - global_min_i + 1
     n_bins_j = global_max_j - global_min_j + 1
-
+    
     # Compute the true lower-left coordinates.
     x_min = global_min_i * bin_size
     y_min = global_min_j * bin_size
-
+    
     # Initialize the dense array for average velocity with NaN values.
     avg_field = fill(NaN, n_bins_i, n_bins_j, 2)
-
+    
     # Populate the dense array: for each bin key, compute and store the average velocity.
     for (key, (sum_vel, count)) in global_dict
         i_bin, j_bin = key
@@ -136,8 +154,10 @@ function generate_field(dataset_dir::String, plane::Geometry.Plane; bin_size::Un
         jj = j_bin - global_min_j + 1
         avg_field[ii, jj, :] .= sum_vel ./ count
     end
-
-    return Field(avg_field, (x_min, y_min), bin_size)
+    
+    # Set the geometry type as a Symbol.
+    geometry_type = (geom isa Geometry.Plane) ? :plane : (geom isa Geometry.Cylinder ? :cylindrical : :unknown)
+    return Field(avg_field, (x_min, y_min), bin_size, geometry_type)
 end
 
 

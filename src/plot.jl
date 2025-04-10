@@ -102,97 +102,111 @@ function custom_quiver!(X::AbstractVector, Y::AbstractVector, U::AbstractVector,
 end
 
 
-"""
-    plot_field(field::Field; arrow_length::Union{Float64, Nothing}=nothing)
-
-Generates a plot of the velocity field stored in the given Field object.
-
-Arguments:
-  - `field`: A Field instance containing:
-       - `avg_field`: a 3D array of size [n_bins_x, n_bins_y, 2] of averaged velocity vectors.
-       - `origin`: a tuple (x_min, y_min) representing the true lower-left coordinate.
-       - `bin_size`: the bin size used during field generation.
-  - `arrow_length`: an optional fixed arrow length for the quiver plot. 
-    If not provided, it defaults to 70% of the bin_size.
-
-Plotting Details:
-  - A heatmap is created using the magnitude (speed) of the averaged velocity in each bin.
-  - A quiver plot overlays constant-length arrows (colored white) to indicate the direction of velocity.
-  - Bin centers are computed using the true origin so the field aligns with the proper spatial coordinates.
-
-Returns nothing; the plot is displayed on screen.
-"""
-function plot_field(field::Field; arrow_length::Union{Float64, Nothing}=nothing)
+function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing, 
+                    figure_name::Union{String,Nothing}=nothing)
     avg_field = field.avg_field
     origin = field.origin
     bin_size = field.bin_size
+    geom_type = field.geometry_type
 
-    n_bins_x, n_bins_y, two = size(avg_field)
-    if two != 2
-        error("Expected avg_field to have size [n_bins_x, n_bins_y, 2]")
+    if isnothing(figure_name)
+        figure_name = "velocity_field.png"
     end
 
     if isnothing(arrow_length)
         arrow_length = 0.7 * bin_size  # 70% of bin_size
     end
 
-    # Unpack the true origin.
-    x_origin, y_origin = origin
+    # Determine x/y coordinates and possibly mirror the field for cylindrical fields.
+    if geom_type == :cylindrical
+        # For the cylindrical case, the first bin dimension is the radial coordinate (r)
+        # and the second is the axial coordinate (z).
+        n_bins_r = size(avg_field, 1)
+        n_bins_z = size(avg_field, 2)
 
-    # Compute bin-center coordinates using the true origin.
-    x_coords = [x_origin + (i - 0.5) * bin_size for i in 1:n_bins_x]
-    y_coords = [y_origin + (j - 0.5) * bin_size for j in 1:n_bins_y]
+        # Positive radial bin centers.
+        pos_r = [origin[1] + (i - 0.5) * bin_size for i in 1:n_bins_r]
+        z_coords = [origin[2] + (j - 0.5) * bin_size for j in 1:n_bins_z]
 
-    # Preallocate arrays for magnitude and arrow components.
-    mag = zeros(n_bins_x, n_bins_y)
-    arrow_u = zeros(n_bins_x, n_bins_y)
-    arrow_v = zeros(n_bins_x, n_bins_y)
+        # Mirror the radial bins: negative r are a mirror of the positive ones.
+        mirrored_r = vcat([-r for r in reverse(pos_r)], pos_r)
+        n_bins_r_full = length(mirrored_r)
 
-    for i in 1:n_bins_x, j in 1:n_bins_y
-        v = avg_field[i, j, :]
-        mag[i, j] = norm(v)
-        theta = (mag[i, j] > 0) ? atan(v[2], v[1]) : 0.0
-        arrow_u[i, j] = arrow_length * cos(theta)
-        arrow_v[i, j] = arrow_length * sin(theta)
+        # Create a new field array with dimensions [2*n_bins_r, n_bins_z, 2].
+        mirrored_field = Array{Float64}(undef, n_bins_r_full, n_bins_z, 2)
+        # Fill negative-r half by mirroring the field (flip the sign of the radial velocity component).
+        for i in 1:n_bins_r
+            src_idx = n_bins_r - i + 1
+            for j in 1:n_bins_z
+                v = avg_field[src_idx, j, :]
+                mirrored_field[i, j, 1] = -v[1]  # flip radial component
+                mirrored_field[i, j, 2] = v[2]
+            end
+        end
+        # Copy the original field into the positive-r half.
+        for i in 1:n_bins_r, j in 1:n_bins_z
+            mirrored_field[n_bins_r + i, j, :] = avg_field[i, j, :]
+        end
+
+        # Use the mirrored field and set coordinate labels.
+        avg_field_to_plot = mirrored_field
+        x_coords = mirrored_r
+        y_coords = z_coords
+        xlabel = "r"
+        ylabel = "z"
+    else
+        # For a plane, simply compute the bin centers.
+        n_bins_x = size(avg_field, 1)
+        n_bins_y = size(avg_field, 2)
+        x_coords = [origin[1] + (i - 0.5) * bin_size for i in 1:n_bins_x]
+        y_coords = [origin[2] + (j - 0.5) * bin_size for j in 1:n_bins_y]
+        avg_field_to_plot = avg_field
+        xlabel = "x′"
+        ylabel = "y′"
     end
 
-    # # Calculate extended limits so that an extra bin margin appears on each side.
-    # xlims = (x_origin - bin_size, x_origin + n_bins_x * bin_size + bin_size)
-    # ylims = (y_origin - bin_size, y_origin + n_bins_y * bin_size + bin_size)
+    # Compute the field magnitude and fixed-length arrow components.
+    n_x, n_y, two = size(avg_field_to_plot)
+    mag = zeros(n_x, n_y)
+    arrow_u = zeros(n_x, n_y)
+    arrow_v = zeros(n_x, n_y)
+    for i in 1:n_x, j in 1:n_y
+        v = avg_field_to_plot[i, j, :]
+        mag[i, j] = norm(v)
+        θ = mag[i, j] > 0 ? atan(v[2], v[1]) : 0.0
+        arrow_u[i, j] = arrow_length * cos(θ)
+        arrow_v[i, j] = arrow_length * sin(θ)
+    end
 
-    # Compute the limits to line the edges up.
+    # Compute plot limits.
     xlims = (x_coords[1] - bin_size/2, x_coords[end] + bin_size/2)
     ylims = (y_coords[1] - bin_size/2, y_coords[end] + bin_size/2)
 
-    # Create the heatmap colored by velocity magnitude.
+    # Create the heatmap using velocity magnitude.
     p = heatmap(x_coords, y_coords, mag',
         aspect_ratio = 1,
         colorbar_title = "Speed (m/s)",
-        xlabel = "x′", ylabel = "y′",
+        xlabel = xlabel, ylabel = ylabel,
         xlims = xlims,
         ylims = ylims)
 
-    # Create meshgrid-like arrays for quiver overlay.
-    X = repeat(x_coords, 1, n_bins_y)
-    Y = repeat(y_coords', n_bins_x, 1)
+    # Build meshgrid-like arrays for the quiver overlay.
+    X = repeat(x_coords, 1, n_y)
+    Y = repeat(y_coords', n_x, 1)
 
-    # Overlay arrows.
-    custom_quiver!(
-        vec(X), vec(Y),
-        vec(arrow_u), vec(arrow_v);
-        color=:white,
-        linewidth=1.0,
-        headwidth=arrow_length * 0.2,
-        headlength=arrow_length * 0.2)
+    # Overlay constant-length arrows.
+    custom_quiver!(vec(X), vec(Y), vec(arrow_u), vec(arrow_v);
+        color = :white,
+        linewidth = 1.0,
+        headwidth = arrow_length * 0.2,
+        headlength = arrow_length * 0.2)
 
-    # Display and save the plot.
     display(p)
-    plot_name = "velocity_field.png"
-    println("Saved plot $plot_name")
+    println("Saved plot $figure_name")
     flush(stdout)
-    savefig(p, plot_name)
-
+    savefig(p, figure_name)
     return nothing
 end
+
 
 end # module Plot
