@@ -15,14 +15,16 @@ export DataSet, process_directory, process_file
 # "particles_*.vtk" (standard LIGGGHTS output) and returns a vector of
 # full file paths.
 # ---
-function find_files(dir::String)::Vector{String}
+function find_files(dir::String; pattern::Union{Regex, Nothing}=nothing)::Vector{String}
     # Check that the directory exists.
     if !isdir(dir)
         error("DataSet: Provided directory '$dir' does not exist!")
     end
 
-    # Regex for particles_*.vtk (standard LIGGGHTS output)
-    pattern = r"^particles_\d+\.vtk$"
+    if isnothing(pattern)
+        # Regex for particles_*.vtk (standard LIGGGHTS output)
+        pattern = r"^particles_\d+\.vtk$"
+    end
 
     found_files = String[]
 

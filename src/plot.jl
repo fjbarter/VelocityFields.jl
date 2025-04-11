@@ -109,6 +109,8 @@ function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing,
     bin_size = field.bin_size
     geom_type = field.geometry_type
 
+    if !isdir("plots") mkdir("plots") end
+
     if isnothing(figure_name)
         figure_name = "velocity_field.png"
     end
@@ -204,7 +206,7 @@ function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing,
     display(p)
     println("Saved plot $figure_name")
     flush(stdout)
-    savefig(p, figure_name)
+    savefig(p, joinpath("plots", figure_name))
     return nothing
 end
 
