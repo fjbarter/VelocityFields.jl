@@ -1,7 +1,8 @@
 # example.jl
 
-# using Pkg
+using Pkg
 # Pkg.develop(url="https://github.com/fjbarter/VelocityFields.jl")
+Pkg.develop(url="https://github.com/fjbarter/Packing3D.jl")
 
 using VelocityFields
 
@@ -22,5 +23,9 @@ cylinder = Cylinder(origin, axis_vector)
 
 @time field = generate_field(directory, cylinder; bin_size=0.005)
 
+vorticity = compute_vorticity(field)
+
 # Plot the field.
 plot_field(field)
+
+println(vorticity)

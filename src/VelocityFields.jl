@@ -18,7 +18,7 @@ using Packing3D # Default public API
 using Packing3D: get_mesh_bounds # Custom function retrieval
 using Distributed
 
-export generate_field, plot_field, Plane, Cylinder, Field
+export generate_field, plot_field, Plane, Cylinder, Field, compute_vorticity
 
 # --- Helper function for per-file processing ---
 # Processes an individual file to compute a dictionary of bin accumulations.
@@ -112,9 +112,13 @@ Returns a Field instance encapsulating:
   - `bin_size`: the bin size used,
   - `geometry_type`: a Symbol indicating the analysis type (:plane or :cylindrical).
 """
-function generate_field(dataset_dir::String, geom; bin_size::Union{Float64,Nothing}=nothing)
+function generate_field(
+    dataset_dir::String, geom;
+    bin_size::Union{Float64,Nothing}=nothing,
+    start_idx::Union{Nothing,Int}=nothing,
+    end_idx::Union{Nothing,Int}=nothing)
     # Load dataset info using our DataSet module.
-    ds = DataSet(dataset_dir)
+    ds = DataSet(dataset_dir; start_idx=start_idx, end_idx=end_idx)
     
     # If no bin_size is provided, estimate one using the first file.
     if isnothing(bin_size)
