@@ -153,7 +153,7 @@ function transform_file_data(file::String, geom::Union{Plane, Cylinder}, data_1_
     if isnothing(data_1_ids)
         data = data_full
     else
-        data_1, data_2 = match_split_data(data, data_1_ids, data_2_ids)
+        data_1, data_2 = match_split_data(data_full, data_1_ids, data_2_ids)
         if isnothing(split)
             error("Partition choice not specified when split_by provided. Use split=1 or split=2")
         end
