@@ -146,9 +146,26 @@ For a Cylinder, the transformation:
 In the Cylinder case, the final coordinates become [r, θ, z] (with θ in [0, 2π]). For both types, 
 if a velocity field exists it is rotated using the same transformation (without further conversion).
 """
-function transform_file_data(file::String, geom::Union{Plane, Cylinder})
+function transform_file_data(file::String, geom::Union{Plane, Cylinder}, data_1_ids, data_2_ids, split)
     # Read data using Packing3D's VTK reader.
-    data = read_vtk_file(file)
+    data_full = read_vtk_file(file)
+
+    if isnothing(data_1_ids)
+        data = data_full
+    else
+        data_1, data_2 = match_split_data(data, data_1_ids, data_2_ids)
+        if isnothing(split)
+            error("Partition choice not specified when split_by provided. Use split=1 or split=2")
+        end
+
+        if split == 1
+            data = data_1
+        elseif split == 2
+            data = data_2
+        else
+            error("Invalid partition value provided. Choose split=1 or split=2")
+        end
+    end
 
     # Extract original points.
     points = data[:points]

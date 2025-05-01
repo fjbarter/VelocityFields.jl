@@ -22,10 +22,19 @@ export generate_field, plot_field, Plane, Cylinder, Field, compute_vorticity
 
 # --- Helper function for per-file processing ---
 # Processes an individual file to compute a dictionary of bin accumulations.
-function process_file_helper(file::String, geom, bin_size_reciprocal::Float64)
+function process_file_helper(
+    file::String,
+    geom,
+    bin_size_reciprocal::Float64,
+    data_1_ids,
+    data_2_ids,
+    split
+    )
+
     local_dict = Dict{Tuple{Int,Int}, Tuple{Vector{Float64}, Int}}()
+
     # Transform file data using our generic transform routine.
-    data = Geometry.transform_file_data(file, geom)
+    data = Geometry.transform_file_data(file, geom, data_1_ids, data_2_ids, split)
     pts = data[:points]
     if !haskey(data[:point_data], :v)
         @warn "File $file does not contain velocity data under key :v. Skipping file."
@@ -116,14 +125,25 @@ function generate_field(
     dataset_dir::String, geom;
     bin_size::Union{Float64,Nothing}=nothing,
     start_idx::Union{Nothing,Int}=nothing,
-    end_idx::Union{Nothing,Int}=nothing)
+    end_idx::Union{Nothing,Int}=nothing,
+    split_by::Union{Symbol, Nothing}=nothing,
+    threshold::Union{<:Real, Nothing}=nothing,
+    split::Union{Int64, Nothing}=nothing)
     # Load dataset info using our DataSet module.
     ds = DataSet(dataset_dir; start_idx=start_idx, end_idx=end_idx)
+
+    if !isnothing(split_by) && !isnothing(threshold) && !isnothing(split)
+        initial_data = read_vtk_file(ds.files[1])
+        data_1_ids, data_2_ids = split_data(initial_data; split_by=split_by, threshold=threshold)
+    else
+        data_1_ids = nothing
+        data_2_ids = nothing
+    end
     
     # If no bin_size is provided, estimate one using the first file.
     if isnothing(bin_size)
         first_file = ds.files[1]
-        data_first = Geometry.transform_file_data(first_file, geom)
+        data_first = Geometry.transform_file_data(first_file, geom, data_1_ids, data_2_ids, split)
         pts = data_first[:points]
         # For a Plane, use x' (column 1); for a Cylinder, use the radial coordinate (also column 1).
         xs = pts[:, 1]
@@ -134,7 +154,7 @@ function generate_field(
     bin_size_reciprocal = 1 / bin_size
     
     # Process each file in parallel (each returns a dictionary of bin accumulations).
-    local_dicts = pmap(file -> process_file_helper(file, geom, bin_size_reciprocal), ds.files)
+    local_dicts = pmap(file -> process_file_helper(file, geom, bin_size_reciprocal, data_1_ids, data_2_ids, split), ds.files)
     
     # Merge all local dictionaries into a single global dictionary.
     global_dict = reduce(merge_dicts, local_dicts)
