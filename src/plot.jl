@@ -186,7 +186,11 @@ function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing,
     ylims = (y_coords[1] - bin_size/2, y_coords[end] + bin_size/2)
 
     # --- Custom Colorbar Tick Logic ---
-    data_min, data_max = extrema(mag)
+    # Only look at the finite magnitudes
+    vals = mag[.!isnan.(mag)]
+
+    data_min = minimum(vals)
+    data_max = maximum(vals)
 
     # 1) Rounded minimum to 2 dp
     rounded_min = round(data_min, digits=2)
