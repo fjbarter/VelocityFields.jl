@@ -18,7 +18,11 @@ using Packing3D # Default public API
 using Packing3D: get_mesh_bounds # Custom function retrieval
 using Distributed
 
-export generate_field, plot_field, Plane, Cylinder, Field, compute_vorticity
+# CSV support
+using CSV
+using DataFrames
+
+export generate_field, plot_field, Plane, Cylinder, Field, compute_vorticity, field_to_csv, csv_to_field
 
 # --- Helper function for per-file processing ---
 # Processes an individual file to compute a dictionary of bin accumulations.
@@ -190,6 +194,108 @@ function generate_field(
     return Field(avg_field, (x_min, y_min), bin_size, geometry_type)
 end
 
+"""
+    field_to_csv(field::Field, filepath::String)
 
+Write a velocity Field to a CSV file. The first lines are human-readable metadata:
+
+# geometry_type=<plane|cylindrical>
+# origin_x=<value>
+# origin_y=<value>
+# bin_size=<value>
+
+Then a true CSV with header x,y,u,v.
+"""
+function field_to_csv(field::Field, filepath::String)
+    avg       = field.avg_field
+    origin_x, origin_y = field.origin
+    bin       = field.bin_size
+    n_i, n_j, _ = size(avg)
+
+    open(filepath, "w") do io
+        # -- Metadata header
+        println(io, "# geometry_type=$(string(field.geometry_type))")
+        println(io, "# origin_x=$origin_x")
+        println(io, "# origin_y=$origin_y")
+        println(io, "# bin_size=$bin")
+
+        # -- CSV header
+        println(io, "x,y,u,v")
+
+        # -- Data rows
+        for i in 1:n_i, j in 1:n_j
+            x = origin_x + (i-1)*bin
+            y = origin_y + (j-1)*bin
+            u = avg[i, j, 1]
+            v = avg[i, j, 2]
+            println(io, "$x,$y,$u,$v")
+        end
+    end
+end
+
+"""
+    csv_to_field(filepath::String)
+
+Read back the file produced by `field_to_csv` and reconstruct a Field.
+"""
+function csv_to_field(filepath::String)
+    # 1) Slurp all lines
+    lines = readlines(filepath)
+
+    # 2) Separate metadata vs. CSV lines
+    metadata = Dict{String,String}()
+    data_lines = String[]
+    for line in lines
+        if startswith(line, "#")
+            # strip leading '#', whitespace, then split on '='
+            meta = strip(lstrip(line, '#'))
+            if occursin("=", meta)
+                k,v = split(meta, "=", limit=2)
+                metadata[strip(k)] = strip(v)
+            end
+        elseif isempty(strip(line))
+            continue
+        else
+            push!(data_lines, line)
+        end
+    end
+
+    # 3) Parse metadata (will error if you forgot to write any of these)
+    geometry_type = Symbol(metadata["geometry_type"])
+    origin_x      = parse(Float64, metadata["origin_x"])
+    origin_y      = parse(Float64, metadata["origin_y"])
+    bin_size      = parse(Float64, metadata["bin_size"])
+
+    # 4) Parse the CSV block into a DataFrame
+    #    First line of data_lines is "x,y,u,v"
+    header = split(data_lines[1], ",")
+    @assert header == ["x","y","u","v"] "Unexpected CSV header: $header"
+
+    # 5) Build a DataFrame by parsing each row
+    rows = Vector{NamedTuple{(:x,:y,:u,:v),NTuple{4,Float64}}}()
+    for row_text in data_lines[2:end]
+        vals = split(row_text, ",")
+        x = parse(Float64, vals[1])
+        y = parse(Float64, vals[2])
+        u = parse(Float64, vals[3])
+        v = parse(Float64, vals[4])
+        push!(rows, (x=x, y=y, u=u, v=v))
+    end
+    df = DataFrame(rows)
+
+    # 6) Reconstruct the 2D grid
+    xs = sort(unique(df.x))
+    ys = sort(unique(df.y))
+    n_i, n_j = length(xs), length(ys)
+    avg = fill(NaN, n_i, n_j, 2)
+    for r in eachrow(df)
+        i = Int(floor((r.x - origin_x)/bin_size)) + 1
+        j = Int(floor((r.y - origin_y)/bin_size)) + 1
+        avg[i, j, 1] = r.u
+        avg[i, j, 2] = r.v
+    end
+
+    return Field(avg, (origin_x, origin_y), bin_size, geometry_type)
+end
 
 end # module VelocityFields

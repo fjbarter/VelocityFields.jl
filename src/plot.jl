@@ -8,6 +8,7 @@ using ..FieldModule
 
 using LinearAlgebra
 using Plots
+using Plots: mm
 
 export plot_field
 
@@ -184,13 +185,50 @@ function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing,
     xlims = (x_coords[1] - bin_size/2, x_coords[end] + bin_size/2)
     ylims = (y_coords[1] - bin_size/2, y_coords[end] + bin_size/2)
 
-    # Create the heatmap using velocity magnitude.
-    p = heatmap(x_coords, y_coords, mag',
-        aspect_ratio = 1,
-        colorbar_title = "Speed (m/s)",
-        xlabel = xlabel, ylabel = ylabel,
-        xlims = xlims,
-        ylims = ylims)
+    # --- Custom Colorbar Tick Logic ---
+    data_min, data_max = extrema(mag)
+
+    # 1) Rounded minimum to 2 dp
+    rounded_min = round(data_min, digits=2)
+
+    # 2) Candidate interval (fallback to 0.01)
+    interval = round((data_max - data_min) / 10, digits=2)
+    interval = interval > 0 ? interval : 0.01
+
+    # 3) Build tick array from rounded_min up to data_max
+    raw = collect(rounded_min:interval:(rounded_min + 20*interval))
+    cand = filter(t -> t < data_max, raw)
+    ticks = unique(round.(cand, digits=2))
+
+    # 4) Cap at 10 ticks
+    if length(ticks) > 10
+        ticks = ticks[1:10]
+    end
+
+    # 5) Build labels without sprintf
+    tick_labels = string.(round.(ticks, digits=2))   # e.g. ["0.12","0.5","1.0",...]
+
+    # 6) Compute needed right_margin
+    max_chars = maximum(length.(tick_labels))
+    char_width = 3mm
+    padding    = 5mm
+    rm         = max_chars*char_width + padding
+
+    # --- Now plot with adaptive margin & ticks ---
+    p = heatmap(
+        x_coords, y_coords, mag';
+        aspect_ratio            = 1,
+        colorbar_title          = "Speed (m/s)",
+        colorbar_title_side     = :top,
+        colorbar_title_rotation = 0,
+        colorbar_tickvals       = ticks,
+        colorbar_ticklabels     = tick_labels,
+        right_margin            = rm,
+        xlabel                  = xlabel,
+        ylabel                  = ylabel,
+        xlims                   = xlims,
+        ylims                   = ylims,
+    )
 
     # Build meshgrid-like arrays for the quiver overlay.
     X = repeat(x_coords, 1, n_y)

@@ -2,7 +2,7 @@
 
 using Pkg
 # Pkg.develop(url="https://github.com/fjbarter/VelocityFields.jl")
-Pkg.develop(url="https://github.com/fjbarter/Packing3D.jl")
+# Pkg.develop(url="https://github.com/fjbarter/Packing3D.jl")
 
 using VelocityFields
 
@@ -21,7 +21,11 @@ axis_vector = [0.0, 0.0, 0.08]
 
 cylinder = Cylinder(origin, axis_vector)
 
-@time field = generate_field(directory, cylinder; bin_size=0.005)
+@time field_original = generate_field(directory, cylinder; bin_size=0.005)
+
+field_to_csv(field_original, "field.csv")
+
+field = csv_to_field("field.csv")
 
 vorticity = compute_vorticity(field)
 
