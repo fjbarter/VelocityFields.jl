@@ -195,21 +195,21 @@ function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing,
     interval = round((data_max - data_min) / 10, digits=2)
     interval = interval > 0 ? interval : 0.01
 
-    # 3) Build tick array from rounded_min up to data_max
-    raw = collect(rounded_min:interval:(rounded_min + 20*interval))
-    cand = filter(t -> t < data_max, raw)
-    ticks = unique(round.(cand, digits=2))
+    # 3) Build float‐friendly tick array up to data_max
+    raw = range(rounded_min, step=interval, stop=data_max)
+    cand = round.(collect(raw), digits=2)
+    ticks = unique(cand[cand .< data_max])
 
     # 4) Cap at 10 ticks
     if length(ticks) > 10
         ticks = ticks[1:10]
     end
 
-    # 5) Build labels without sprintf
-    tick_labels = string.(round.(ticks, digits=2))   # e.g. ["0.12","0.5","1.0",...]
+    # 5) String labels without sprintf
+    tick_labels = string.(ticks)
 
-    # 6) Compute needed right_margin
-    max_chars = maximum(length.(tick_labels))
+    # 6) Compute margin
+    max_chars  = maximum(length.(tick_labels))
     char_width = 3mm
     padding    = 5mm
     rm         = max_chars*char_width + padding
