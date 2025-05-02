@@ -21,15 +21,20 @@ axis_vector = [0.0, 0.0, 0.08]
 
 cylinder = Cylinder(origin, axis_vector)
 
-@time field_original = generate_field(directory, cylinder; bin_size=0.005)
+# @time field = generate_field(directory, cylinder; bin_size=0.005, long_average=true, timestep=1e-5)
 
-field_to_csv(field_original, "field.csv")
+@time field_small = generate_field(directory, cylinder; bin_size=0.0043, split_by=:radius, threshold=0.0007, split=1, long_average=true, timestep=1e-5)
+@time field_large = generate_field(directory, cylinder; bin_size=0.0043, split_by=:radius, threshold=0.0007, split=2, long_average=true, timestep=1e-5)
 
-field = csv_to_field("field.csv")
+max_speed = 0.000083
 
-vorticity = compute_vorticity(field)
+# Generate plots
+plot_field(field_small; figure_name="small_cyl.png", cbar_max=max_speed)
+plot_field(field_large; figure_name="large_cyl.png", cbar_max=max_speed)
+
+# vorticity = compute_vorticity(field)
 
 # Plot the field.
-plot_field(field)
+# plot_field(field)
 
-println(vorticity)
+# println(vorticity)

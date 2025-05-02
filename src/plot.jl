@@ -8,7 +8,6 @@ using ..FieldModule
 
 using LinearAlgebra
 using Plots
-using Plots: mm
 
 export plot_field
 
@@ -103,8 +102,12 @@ function custom_quiver!(X::AbstractVector, Y::AbstractVector, U::AbstractVector,
 end
 
 
-function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing, 
-                    figure_name::Union{String,Nothing}=nothing)
+function plot_field(
+    field::Field;
+    arrow_length::Union{Float64,Nothing}=nothing,
+    figure_name::Union{String,Nothing}=nothing,
+    cbar_max::Union{<:Real,Nothing}=nothing
+    )
     avg_field = field.avg_field
     origin = field.origin
     bin_size = field.bin_size
@@ -190,7 +193,12 @@ function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing,
     vals = mag[.!isnan.(mag)]
 
     data_min = minimum(vals)
-    data_max = maximum(vals)
+
+    if isnothing(cbar_max)
+        data_max = maximum(vals)
+    else
+        data_max = cbar_max
+    end
 
     # 1) Rounded minimum to 2 dp
     rounded_min = round(data_min, digits=2)
@@ -214,20 +222,33 @@ function plot_field(field::Field; arrow_length::Union{Float64,Nothing}=nothing,
 
     # 6) Compute margin
     max_chars  = maximum(length.(tick_labels))
-    char_width = 3mm
-    padding    = 5mm
-    rm         = max_chars*char_width + padding
 
-    # --- Now plot with adaptive margin & ticks ---
+    char_width_mm  = 3.0    # approximate height of one line of text, in mm
+    padding_mm     = 0.0    # a little extra space
+    # total space needed above the ticks, in mm
+    margin_mm      = max_chars*char_width_mm + padding_mm
+    # how many lines of height `char_width_mm` fit into that?
+    # n_newlines     = ceil(Int, margin_mm/char_width_mm)
+    n_newlines = round(Int, max_chars*0.5)
+
+    # build the multi-line title
+    function padded_cb_title(base::AbstractString, n::Integer)
+        return string(repeat('\n', n), base)
+    end
+
+    cb_title = padded_cb_title("Speed (m/s)", n_newlines)
+
+    # --- now your plot call --- 
     p = heatmap(
         x_coords, y_coords, mag';
+        clims=(data_min, data_max),
         aspect_ratio            = 1,
-        colorbar_title          = "Speed (m/s)",
+        colorbar_title          = cb_title,
         colorbar_title_side     = :top,
         colorbar_title_rotation = 0,
         colorbar_tickvals       = ticks,
         colorbar_ticklabels     = tick_labels,
-        right_margin            = rm,
+        right_margin            = 10Plots.mm,
         xlabel                  = xlabel,
         ylabel                  = ylabel,
         xlims                   = xlims,
