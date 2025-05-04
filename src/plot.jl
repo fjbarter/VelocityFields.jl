@@ -158,8 +158,8 @@ function plot_field(
         avg_field_to_plot = mirrored_field
         x_coords = mirrored_r
         y_coords = z_coords
-        xlabel = "r"
-        ylabel = "z"
+        xlabel = "r (m)"
+        ylabel = "z (m)"
     else
         # For a plane, simply compute the bin centers.
         n_bins_x = size(avg_field, 1)
@@ -167,8 +167,8 @@ function plot_field(
         x_coords = [origin[1] + (i - 0.5) * bin_size for i in 1:n_bins_x]
         y_coords = [origin[2] + (j - 0.5) * bin_size for j in 1:n_bins_y]
         avg_field_to_plot = avg_field
-        xlabel = "x′"
-        ylabel = "y′"
+        xlabel = "x′ (m)"
+        ylabel = "y′ (m)"
     end
 
     # Compute the field magnitude and fixed-length arrow components.

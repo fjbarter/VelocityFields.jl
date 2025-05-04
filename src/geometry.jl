@@ -146,7 +146,7 @@ For a Cylinder, the transformation:
 In the Cylinder case, the final coordinates become [r, θ, z] (with θ in [0, 2π]). For both types, 
 if a velocity field exists it is rotated using the same transformation (without further conversion).
 """
-function transform_file_data(file::String, geom::Union{Plane, Cylinder}, data_1_ids, data_2_ids, split)
+function transform_file_data(file::String, geom::Union{Plane, Cylinder}, data_1_ids, data_2_ids, split, vector_symbol)
     # Read data using Packing3D's VTK reader.
     data_full = read_vtk_file(file)
 
@@ -212,9 +212,9 @@ function transform_file_data(file::String, geom::Union{Plane, Cylinder}, data_1_
         error("Unsupported geometry type. Expected Plane or Cylinder.")
     end
 
-    # Transform velocities if available.
-    if haskey(data[:point_data], :v)
-        velocities = data[:point_data][:v]
+    # Transform vector data if available.
+    if haskey(data[:point_data], vector_symbol)
+        velocities = data[:point_data][vector_symbol]
         # Ensure velocities is a 2D Array as well.
         if ndims(velocities) != 2
             velocities = hcat(velocities...)'
@@ -227,7 +227,7 @@ function transform_file_data(file::String, geom::Union{Plane, Cylinder}, data_1_
             for i in 1:nvel
                 new_velocities[i, :] = T_transpose * velocities[i, :]
             end
-            data[:point_data][:v] = new_velocities
+            data[:point_data][vector_symbol] = new_velocities
         end
     end
 

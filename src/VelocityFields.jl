@@ -32,13 +32,14 @@ function process_file_helper(
     bin_size_reciprocal::Float64,
     data_1_ids,
     data_2_ids,
-    split
+    split,
+    vector_symbol
     )
 
     local_dict = Dict{Tuple{Int,Int}, Tuple{Vector{Float64}, Int}}()
 
     # Transform file data using our generic transform routine.
-    data = Geometry.transform_file_data(file, geom, data_1_ids, data_2_ids, split)
+    data = Geometry.transform_file_data(file, geom, data_1_ids, data_2_ids, split, vector_symbol)
     pts = data[:points]
     if !haskey(data[:point_data], :v)
         @warn "File $file does not contain velocity data under key :v. Skipping file."
@@ -144,7 +145,14 @@ function generate_field(
     threshold::Union{<:Real, Nothing}=nothing,
     split::Union{Int64, Nothing}=nothing,
     long_average::Union{Bool, Nothing}=nothing,
-    timestep::Union{<:Real, Nothing}=nothing)
+    timestep::Union{<:Real, Nothing}=nothing,
+    vector_type::Union{Symbol, Nothing}=nothing)
+
+    if isnothing(vector_type)
+        vector_symbol = :v
+    else
+        vector_symbol = vector_type
+    end
     
     # Load dataset info
     ds = DataSet(dataset_dir; start_idx=start_idx, end_idx=end_idx)
@@ -160,7 +168,7 @@ function generate_field(
     
     # Estimate bin size if not provided
     if isnothing(bin_size)
-        data_first = Geometry.transform_file_data(ds.files[1], geom, data_1_ids, data_2_ids, split)
+        data_first = Geometry.transform_file_data(ds.files[1], geom, data_1_ids, data_2_ids, split, vector_symbol)
         xs = data_first[:points][:, 1]
         span = maximum(xs) - minimum(xs)
         bin_size = 0.05 * span
@@ -169,6 +177,7 @@ function generate_field(
 
     if long_average === true
         @assert !isnothing(timestep) "Timestep must be provided for long_average=true"
+        @assert vector_symbol == :v "Vector type must be velocity for long_average=true"
 
         # Select start and end files
         file_start = ds.files[1]
@@ -180,8 +189,8 @@ function generate_field(
         dt = (idx_e - idx_s) * timestep
 
         # Transform both start and end files
-        data_s = Geometry.transform_file_data(file_start, geom, data_1_ids, data_2_ids, split)
-        data_e = Geometry.transform_file_data(file_end,   geom, data_1_ids, data_2_ids, split)
+        data_s = Geometry.transform_file_data(file_start, geom, data_1_ids, data_2_ids, split, vector_symbol)
+        data_e = Geometry.transform_file_data(file_end,   geom, data_1_ids, data_2_ids, split, vector_symbol)
 
         pts_s = data_s[:points]
         pts_e = data_e[:points]
@@ -225,7 +234,7 @@ function generate_field(
         end
     else
         # Standard parallel map-reduce
-        local_dicts = pmap(file -> process_file_helper(file, geom, bin_size_reciprocal, data_1_ids, data_2_ids, split), ds.files)
+        local_dicts = pmap(file -> process_file_helper(file, geom, bin_size_reciprocal, data_1_ids, data_2_ids, split, vector_symbol), ds.files)
         global_dict = reduce(merge_dicts, local_dicts)
     end
 
