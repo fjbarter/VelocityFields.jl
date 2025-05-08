@@ -1,5 +1,8 @@
 # VelocityFields.jl #
 
+[![Julia](https://github.com/fjbarter/VelocityFields.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/fjbarter/VelocityFields.jl/actions/workflows/ci.yml)
+
+
 VelocityFields.jl is a Julia package for generating and analysing averaged velocity fields from particle datasets. It provides high-level routines to transform raw 3D point and velocity data into either projected planar or cylindrical coordinates, bin the data points and generate a 2D field. The resulting `Field` object can be exported to and reconstructed from CSV, and its vorticity automatically calculated. For visualisation, it offers a custom built-in quiver-overlaid heatmap generator with fine control over arrowheads and colorbar ticks. [Packing3D.jl](https://github.com/fjbarter/Packing3D.jl) is used throughout for mesh bounds, data splitting and I/O.
 
 ![Example Image1](https://github.com/fjbarter/VelocityFields.jl/blob/main/source/converging_densification_segregation_field.png?raw=true)
