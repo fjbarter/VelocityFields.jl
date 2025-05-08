@@ -1,6 +1,7 @@
 using Test
 using VelocityFields
 using VelocityFields: FieldModule, Geometry, DataSetModule
+using LinearAlgebra
 
 ###########################################################################
 # FieldModule Tests
