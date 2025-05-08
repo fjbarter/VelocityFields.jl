@@ -4,7 +4,6 @@ VelocityFields.jl is a Julia package for generating and analysing averaged veloc
 
 ![Example Image1](https://github.com/fjbarter/VelocityFields.jl/blob/main/source/converging_densification_segregation_field.png?raw=true)
 Above image: Time- and azimuthally averaged velocity field for the net motion of 50000 bidisperse particles throughout 1000 horizontal taps. The process shown exhibits strong segregating densification. Fields for the small (a) and large (b) particles are shown separately. Velocity was computed from the net displacement of each particle. Field is mirrored about 𝑟 = 0 to better visually represent the vessel, as the field is azimuthally averaged about 𝜃 ∈ [0,2𝜋].
-.
 
 ---
 
@@ -23,7 +22,7 @@ The key public functions and types are:
   - `field_to_csv`  
   - `csv_to_field`
 
-- **Visualization:**  
+- **Visualisation:**  
   - `plot_field`
 
 - **Geometry Types:**  
@@ -200,7 +199,7 @@ Construct coordinate transforms:
 3. **Binning:** Compute provisional bins via `process_file_helper` in parallel, then merge.  
 4. **Post-Processing:** Build dense `avg_field`, compute origin & dimensions.  
 5. **Analysis & I/O:** Compute vorticity or export/reimport via CSV.  
-6. **Visualization:** Heatmap + custom quiver with `plot_field`.
+6. **Visualisation:** Heatmap + custom quiver with `plot_field`.
 
 ## Requirements
 
