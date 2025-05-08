@@ -12,17 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      
-      # 1) Setup Julia and automatically cache ~/.julia
       - uses: julia-actions/setup-julia@v1
         with:
-          version: '1.8'     # or whatever
-          cache: true        # <-- turns on caching of your registry/packages/artifacts
-
-      # 2) (If you need Packing3D)
-      - name: Pull in Packing3D.jl
-        run: julia --project=. -e 'import Pkg; Pkg.add("Test"); Pkg.develop(url="https://github.com/fjbarter/Packing3D.jl")'
-
-      # 3) Instantiate & test
-      - name: Run tests
-        run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+          version: '1.8'
+      - name: Install Dependencies and Run Tests
+        run: |
+          julia --project=. -e 'using Pkg; Pkg.develop(url="https://github.com/fjbarter/Packing3D.jl"); Pkg.instantiate(); import Test; Pkg.add("Test"); Pkg.test("Packing3D")'
