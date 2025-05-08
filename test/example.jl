@@ -26,7 +26,7 @@ cylinder = Cylinder(origin, axis_vector)
 @time field_small = generate_field(directory, cylinder; bin_size=0.0043, split_by=:radius, threshold=0.0007, split=1, long_average=true, timestep=1e-5)
 @time field_large = generate_field(directory, cylinder; bin_size=0.0043, split_by=:radius, threshold=0.0007, split=2, long_average=true, timestep=1e-5)
 
-max_speed = 0.000051
+max_speed = 0.000083
 
 # Generate plots
 plot_field(field_small; figure_name="small_cyl.png", cbar_max=max_speed)
