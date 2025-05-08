@@ -21,7 +21,7 @@ jobs:
 
       # 2) (If you need Packing3D)
       - name: Pull in Packing3D.jl
-        run: julia -e 'import Pkg; Pkg.develop(url="https://github.com/fjbarter/Packing3D.jl")'
+        run: julia --project=. -e 'import Pkg; Pkg.develop(url="https://github.com/fjbarter/Packing3D.jl")'
 
       # 3) Instantiate & test
       - name: Run tests
