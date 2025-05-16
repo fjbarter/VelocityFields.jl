@@ -13,7 +13,7 @@ using LinearAlgebra
     for i in 1:n, j in 1:n
         avg[i, j, 2] = i  # V-component = i
     end
-    field = Field(avg, (0.0, 0.0), 1.0, :plane)
+    field = Field(avg, (0.0, 0.0), 1.0, :plane, :vector, :velocity)
 
     ω = compute_vorticity(field)
     # For this field, ∂V/∂x = 1 everywhere on interior, so mean_abs_vorticity ≈ 1.0
@@ -31,7 +31,7 @@ end
     origin = (1.5, -0.5)
     bin_size = 0.25
     geom = :cylindrical
-    field = Field(avg, origin, bin_size, geom)
+    field = Field(avg, origin, bin_size, geom, :vector, :velocity)
 
     # Write to a temp CSV, then read back
     dir = mktempdir()
