@@ -376,8 +376,9 @@ function csv_to_field(filepath::String)
     avg = fill(NaN, n_i, n_j, n_comp)
     
     for r in eachrow(df)
-        i = Int(floor((r.x - origin_x) / bin)) + 1
-        j = Int(floor((r.y - origin_y) / bin)) + 1
+        i = findfirst(xi -> isapprox(xi, r.x; atol=1e-8), xs)
+        j = findfirst(yi -> isapprox(yi, r.y; atol=1e-8), ys)
+        @assert 1 ≤ i ≤ length(xs) && 1 ≤ j ≤ length(ys)
         if ftype == :vector
             avg[i, j, 1] = r.u
             avg[i, j, 2] = r.v

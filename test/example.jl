@@ -16,23 +16,27 @@ directory = "post"
 # # Generate the Field instance.
 # @time raw_field = generate_field(directory, plane; bin_size=0.005)
 
-base = [0.0, 0.0, 0.0]
-axis_vector = [0.0, 0.0, 1.0]
+# base = [0.0, 0.0, 0.0]
+# axis_vector = [0.0, 0.0, 1.0]
 
-cylinder = Cylinder(base, axis_vector)
+# cylinder = Cylinder(base, axis_vector)
 
-@time raw_field = generate_field(directory, cylinder; bin_size=0.005)
+# @time raw_field = generate_field(directory, cylinder; bin_size=0.005)
 
-field_to_csv(raw_field, "raw_field.csv")
+@time raw_field = csv_to_field("field_csvs/fillheight_63_g_100_y_z.csv")
 
-field = csv_to_field("raw_field.csv")
+plot_field(raw_field; figure_name="field.png")
 
-plot_field(field; figure_name="field.png")
+# field_to_csv(raw_field, "raw_field.csv")
 
-raw_curl_field = compute_curl(field)
+# field = csv_to_field("raw_field.csv")
 
-field_to_csv(raw_curl_field, "raw_curl_field.csv")
+# plot_field(field; figure_name="field.png")
 
-curl_field = csv_to_field("raw_curl_field.csv")
+# raw_curl_field = compute_curl(field)
 
-plot_field(curl_field; figure_name="curl_field.png")
+# field_to_csv(raw_curl_field, "raw_curl_field.csv")
+
+# curl_field = csv_to_field("raw_curl_field.csv")
+
+# plot_field(curl_field; figure_name="curl_field.png")
