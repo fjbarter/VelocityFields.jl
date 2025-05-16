@@ -22,7 +22,7 @@ using Distributed
 using CSV
 using DataFrames
 
-export generate_field, plot_field, Plane, Cylinder, Field, compute_vorticity, field_to_csv, csv_to_field
+export generate_field, plot_field, Plane, Cylinder, Field, compute_vorticity, field_to_csv, csv_to_field, compute_curl
 
 # --- Helper function for per-file processing ---
 # Processes an individual file to compute a dictionary of bin accumulations.
@@ -150,8 +150,10 @@ function generate_field(
 
     if isnothing(vector_type)
         vector_symbol = :v
+        quantity = :velocity
     else
         vector_symbol = vector_type
+        quantity = vector_type
     end
     
     # Load dataset info
@@ -254,44 +256,48 @@ function generate_field(
         avg_field[ii, jj, :] .= sum_vel ./ count
     end
     geometry_type = (geom isa Geometry.Plane) ? :plane : :cylindrical
-    return Field(avg_field, (x_min, y_min), bin_size, geometry_type)
+    return Field(avg_field, (x_min, y_min), bin_size, geometry_type, :vector, quantity)
 end
 
 """
     field_to_csv(field::Field, filepath::String)
 
-Write a velocity Field to a CSV file. The first lines are human-readable metadata:
-
-# geometry_type=<plane|cylindrical>
-# origin_x=<value>
-# origin_y=<value>
-# bin_size=<value>
-
-Then a true CSV with header x,y,u,v.
+Write any Field (vector or scalar) to CSV. Metadata headers include field_type and quantity.  
+Vector fields produce columns x,y,u,v. Scalar fields produce x,y,<quantity>.
 """
 function field_to_csv(field::Field, filepath::String)
-    avg       = field.avg_field
+    avg = field.avg_field
     origin_x, origin_y = field.origin
-    bin       = field.bin_size
-    n_i, n_j, _ = size(avg)
+    bin = field.bin_size
+    n_i, n_j, n_comp = size(avg)
+    ftype = field.field_type
+    qty = string(field.quantity)
 
     open(filepath, "w") do io
-        # -- Metadata header
-        println(io, "# geometry_type=$(string(field.geometry_type))")
+        println(io, "# geometry_type=$(field.geometry_type)")
         println(io, "# origin_x=$origin_x")
         println(io, "# origin_y=$origin_y")
         println(io, "# bin_size=$bin")
+        println(io, "# field_type=$(ftype)")
+        println(io, "# quantity=$qty")
 
-        # -- CSV header
-        println(io, "x,y,u,v")
+        if ftype == :vector
+            println(io, "x,y,u,v")
+        else
+            println(io, "x,y,$qty")
+        end
 
-        # -- Data rows
         for i in 1:n_i, j in 1:n_j
             x = origin_x + (i-1)*bin
             y = origin_y + (j-1)*bin
-            u = avg[i, j, 1]
-            v = avg[i, j, 2]
-            println(io, "$x,$y,$u,$v")
+            if ftype == :vector
+                u = avg[i,j,1]
+                v = avg[i,j,2]
+                println(io, "$x,$y,$u,$v")
+            else
+                val = avg[i,j,1]
+                println(io, "$x,$y,$val")
+            end
         end
     end
 end
@@ -299,21 +305,18 @@ end
 """
     csv_to_field(filepath::String)
 
-Read back the file produced by `field_to_csv` and reconstruct a Field.
+Read CSV with metadata and reconstruct a Field (vector or scalar).
 """
 function csv_to_field(filepath::String)
-    # 1) Slurp all lines
+    # Read raw lines and split metadata
     lines = readlines(filepath)
-
-    # 2) Separate metadata vs. CSV lines
     metadata = Dict{String,String}()
     data_lines = String[]
     for line in lines
         if startswith(line, "#")
-            # strip leading '#', whitespace, then split on '='
             meta = strip(lstrip(line, '#'))
             if occursin("=", meta)
-                k,v = split(meta, "=", limit=2)
+                k, v = split(meta, "=", limit=2)
                 metadata[strip(k)] = strip(v)
             end
         elseif isempty(strip(line))
@@ -323,42 +326,67 @@ function csv_to_field(filepath::String)
         end
     end
 
-    # 3) Parse metadata (will error if you forgot to write any of these)
+    # Parse metadata
     geometry_type = Symbol(metadata["geometry_type"])
-    origin_x      = parse(Float64, metadata["origin_x"])
-    origin_y      = parse(Float64, metadata["origin_y"])
-    bin_size      = parse(Float64, metadata["bin_size"])
+    origin_x = parse(Float64, metadata["origin_x"])
+    origin_y = parse(Float64, metadata["origin_y"])
+    bin = parse(Float64, metadata["bin_size"])
+    ftype = Symbol(metadata["field_type"])
+    qty = metadata["quantity"]
 
-    # 4) Parse the CSV block into a DataFrame
-    #    First line of data_lines is "x,y,u,v"
-    header = split(data_lines[1], ",")
-    @assert header == ["x","y","u","v"] "Unexpected CSV header: $header"
+    # The first non-meta line is the CSV header
+    header = split(data_lines[1], ',')
 
-    # 5) Build a DataFrame by parsing each row
-    rows = Vector{NamedTuple{(:x,:y,:u,:v),NTuple{4,Float64}}}()
-    for row_text in data_lines[2:end]
-        vals = split(row_text, ",")
-        x = parse(Float64, vals[1])
-        y = parse(Float64, vals[2])
-        u = parse(Float64, vals[3])
-        v = parse(Float64, vals[4])
-        push!(rows, (x=x, y=y, u=u, v=v))
+    # Prepare column arrays
+    xcol = Float64[]
+    ycol = Float64[]
+    if ftype == :vector
+        @assert header == ["x","y","u","v"] "Unexpected header: $header"
+        ucol = Float64[]
+        vcol = Float64[]
+        for row_text in data_lines[2:end]
+            vals = split(row_text, ',')
+            x = parse(Float64, vals[1])
+            y = parse(Float64, vals[2])
+            u = parse(Float64, vals[3])
+            v = parse(Float64, vals[4])
+            push!(xcol, x); push!(ycol, y)
+            push!(ucol, u); push!(vcol, v)
+        end
+        df = DataFrame(:x=>xcol, :y=>ycol, :u=>ucol, :v=>vcol)
+    else
+        @assert header == ["x","y", qty] "Unexpected header: $header"
+        valcol = Float64[]
+        for row_text in data_lines[2:end]
+            vals = split(row_text, ',')
+            x = parse(Float64, vals[1])
+            y = parse(Float64, vals[2])
+            val = parse(Float64, vals[3])
+            push!(xcol, x); push!(ycol, y)
+            push!(valcol, val)
+        end
+        df = DataFrame(:x=>xcol, :y=>ycol, Symbol(qty)=>valcol)
     end
-    df = DataFrame(rows)
 
-    # 6) Reconstruct the 2D grid
+    # Reconstruct grid
     xs = sort(unique(df.x))
     ys = sort(unique(df.y))
     n_i, n_j = length(xs), length(ys)
-    avg = fill(NaN, n_i, n_j, 2)
+    n_comp = ftype == :vector ? 2 : 1
+    avg = fill(NaN, n_i, n_j, n_comp)
+    
     for r in eachrow(df)
-        i = Int(floor((r.x - origin_x)/bin_size)) + 1
-        j = Int(floor((r.y - origin_y)/bin_size)) + 1
-        avg[i, j, 1] = r.u
-        avg[i, j, 2] = r.v
+        i = Int(floor((r.x - origin_x) / bin)) + 1
+        j = Int(floor((r.y - origin_y) / bin)) + 1
+        if ftype == :vector
+            avg[i, j, 1] = r.u
+            avg[i, j, 2] = r.v
+        else
+            avg[i, j, 1] = r[Symbol(qty)]
+        end
     end
 
-    return Field(avg, (origin_x, origin_y), bin_size, geometry_type)
+    return Field(avg, (origin_x, origin_y), bin, geometry_type, ftype, Symbol(qty))
 end
 
 end # module VelocityFields

@@ -14,27 +14,25 @@ directory = "post"
 # plane = Plane(ref_point, normal_vector)
 
 # # Generate the Field instance.
-# @time field = generate_field(directory, plane; bin_size=0.005)
+# @time raw_field = generate_field(directory, plane; bin_size=0.005)
 
-origin = [0.0, 0.0, 0.0]
-axis_vector = [0.0, 0.0, 0.08]
+base = [0.0, 0.0, 0.0]
+axis_vector = [0.0, 0.0, 1.0]
 
-cylinder = Cylinder(origin, axis_vector)
+cylinder = Cylinder(base, axis_vector)
 
-# @time field = generate_field(directory, cylinder; bin_size=0.005, long_average=true, timestep=1e-5)
+@time raw_field = generate_field(directory, cylinder; bin_size=0.005)
 
-@time field_small = generate_field(directory, cylinder; bin_size=0.0043, split_by=:radius, threshold=0.0007, split=1, long_average=true, timestep=1e-5)
-@time field_large = generate_field(directory, cylinder; bin_size=0.0043, split_by=:radius, threshold=0.0007, split=2, long_average=true, timestep=1e-5)
+field_to_csv(raw_field, "raw_field.csv")
 
-max_speed = 0.000083
+field = csv_to_field("raw_field.csv")
 
-# Generate plots
-plot_field(field_small; figure_name="small_cyl.png", cbar_max=max_speed)
-plot_field(field_large; figure_name="large_cyl.png", cbar_max=max_speed)
+plot_field(field; figure_name="field.png")
 
-# vorticity = compute_vorticity(field)
+raw_curl_field = compute_curl(field)
 
-# Plot the field.
-# plot_field(field)
+field_to_csv(raw_curl_field, "raw_curl_field.csv")
 
-# println(vorticity)
+curl_field = csv_to_field("raw_curl_field.csv")
+
+plot_field(curl_field; figure_name="curl_field.png")

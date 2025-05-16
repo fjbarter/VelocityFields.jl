@@ -112,6 +112,7 @@ function plot_field(
     origin = field.origin
     bin_size = field.bin_size
     geom_type = field.geometry_type
+    ftype = field.field_type
 
     if !isdir("plots") mkdir("plots") end
 
@@ -138,20 +139,30 @@ function plot_field(
         mirrored_r = vcat([-r for r in reverse(pos_r)], pos_r)
         n_bins_r_full = length(mirrored_r)
 
-        # Create a new field array with dimensions [2*n_bins_r, n_bins_z, 2].
-        mirrored_field = Array{Float64}(undef, n_bins_r_full, n_bins_z, 2)
-        # Fill negative-r half by mirroring the field (flip the sign of the radial velocity component).
+        # Create a new field array with dimensions [2*n_bins_r, n_bins_z, comp].
+        comp_orig = size(avg_field, 3)
+        comp = ftype == :vector ? comp_orig : 1
+        mirrored_field = Array{Float64}(undef, n_bins_r_full, n_bins_z, comp)
+        # Fill negative-r half by mirroring the field.
         for i in 1:n_bins_r
             src_idx = n_bins_r - i + 1
             for j in 1:n_bins_z
-                v = avg_field[src_idx, j, :]
-                mirrored_field[i, j, 1] = -v[1]  # flip radial component
-                mirrored_field[i, j, 2] = v[2]
+                if ftype == :vector
+                    v = avg_field[src_idx, j, :]
+                    mirrored_field[i, j, 1] = -v[1]  # flip radial component
+                    mirrored_field[i, j, 2] = v[2]
+                else
+                    mirrored_field[i, j, 1] = avg_field[src_idx, j, 1]
+                end
             end
         end
         # Copy the original field into the positive-r half.
         for i in 1:n_bins_r, j in 1:n_bins_z
-            mirrored_field[n_bins_r + i, j, :] = avg_field[i, j, :]
+            if ftype == :vector
+                mirrored_field[n_bins_r + i, j, :] = avg_field[i, j, :]
+            else
+                mirrored_field[n_bins_r + i, j, 1] = avg_field[i, j, 1]
+            end
         end
 
         # Use the mirrored field and set coordinate labels.
@@ -172,16 +183,20 @@ function plot_field(
     end
 
     # Compute the field magnitude and fixed-length arrow components.
-    n_x, n_y, two = size(avg_field_to_plot)
+    n_x, n_y, n_comp = size(avg_field_to_plot)
     mag = zeros(n_x, n_y)
     arrow_u = zeros(n_x, n_y)
     arrow_v = zeros(n_x, n_y)
     for i in 1:n_x, j in 1:n_y
-        v = avg_field_to_plot[i, j, :]
-        mag[i, j] = norm(v)
-        θ = mag[i, j] > 0 ? atan(v[2], v[1]) : 0.0
-        arrow_u[i, j] = arrow_length * cos(θ)
-        arrow_v[i, j] = arrow_length * sin(θ)
+        if ftype == :vector
+            v = avg_field_to_plot[i, j, :]
+            mag[i, j] = norm(v)
+            θ = mag[i, j] > 0 ? atan(v[2], v[1]) : 0.0
+            arrow_u[i, j] = arrow_length * cos(θ)
+            arrow_v[i, j] = arrow_length * sin(θ)
+        else
+            mag[i, j] = avg_field_to_plot[i, j, 1]
+        end
     end
 
     # Compute plot limits.
@@ -228,7 +243,6 @@ function plot_field(
     # total space needed above the ticks, in mm
     margin_mm      = max_chars*char_width_mm + padding_mm
     # how many lines of height `char_width_mm` fit into that?
-    # n_newlines     = ceil(Int, margin_mm/char_width_mm)
     n_newlines = round(Int, max_chars*0.5)
 
     # build the multi-line title
@@ -236,7 +250,7 @@ function plot_field(
         return string(repeat('\n', n), base)
     end
 
-    cb_title = padded_cb_title("Speed (m/s)", n_newlines)
+    cb_title = padded_cb_title(ftype == :vector && field.quantity == :velocity ? "Speed (m/s)" : string(field.quantity), n_newlines)
 
     # --- now your plot call --- 
     p = heatmap(
@@ -259,12 +273,14 @@ function plot_field(
     X = repeat(x_coords, 1, n_y)
     Y = repeat(y_coords', n_x, 1)
 
-    # Overlay constant-length arrows.
-    custom_quiver!(vec(X), vec(Y), vec(arrow_u), vec(arrow_v);
-        color = :white,
-        linewidth = 1.0,
-        headwidth = arrow_length * 0.2,
-        headlength = arrow_length * 0.2)
+    # Overlay constant-length arrows if vector field.
+    if ftype == :vector
+        custom_quiver!(vec(X), vec(Y), vec(arrow_u), vec(arrow_v);
+            color = :white,
+            linewidth = 1.0,
+            headwidth = arrow_length * 0.2,
+            headlength = arrow_length * 0.2)
+    end
 
     display(p)
     println("Saved plot $figure_name")
