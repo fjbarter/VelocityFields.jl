@@ -4,7 +4,7 @@ module FieldModule
 
 using Statistics
 
-export Field, compute_curl, compute_vorticity
+export Field, compute_curl, compute_divergence, compute_vorticity
 
 # Define a Field struct to hold any computed field (vector or scalar) and metadata.
 struct Field
@@ -62,6 +62,37 @@ function compute_curl(field::Field)
         quantity = :curl
     end
     return Field(curl_field, field.origin, dx, field.geometry_type, :scalar, quantity)
+end
+
+"""
+    compute_divergence(field::Field) -> Field
+
+Computes the 2D divergence field from the vector `field` stored in the given `Field` instance.
+Returns a new `Field` instance containing the scalar divergence at each grid point.
+"""
+function compute_divergence(field::Field)
+    # Check input field is vector
+    n_bins_x, n_bins_y, n_comp = size(field.avg_field)
+    if n_comp != 2
+        error("compute_divergence: Expected a 2-component vector field")
+    end
+    dx = field.bin_size
+    U = field.avg_field[:,:,1]
+    V = field.avg_field[:,:,2]
+
+    # Initialize divergence array
+    div = zeros(n_bins_x, n_bins_y)
+
+    # Central differences for interior
+    for i in 2:(n_bins_x-1), j in 2:(n_bins_y-1)
+        dU_dx = (U[i+1, j] - U[i-1, j]) / (2*dx)
+        dV_dy = (V[i, j+1] - V[i, j-1]) / (2*dx)
+        div[i, j] = dU_dx + dV_dy
+    end
+
+    # Package into a Field: treat as 1-component scalar field
+    div_field = reshape(div, n_bins_x, n_bins_y, 1)
+    return Field(div_field, field.origin, dx, field.geometry_type, :scalar, :divergence)
 end
 
 """

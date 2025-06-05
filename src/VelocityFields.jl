@@ -22,7 +22,7 @@ using Distributed
 using CSV
 using DataFrames
 
-export generate_field, plot_field, Plane, Cylinder, Field, compute_vorticity, field_to_csv, csv_to_field, compute_curl
+export generate_field, plot_field, Plane, Cylinder, Field, compute_vorticity, field_to_csv, csv_to_field, compute_curl, compute_divergence
 
 # --- Helper function for per-file processing ---
 # Processes an individual file to compute a dictionary of bin accumulations.
@@ -146,7 +146,8 @@ function generate_field(
     split::Union{Int64, Nothing}=nothing,
     long_average::Union{Bool, Nothing}=nothing,
     timestep::Union{<:Real, Nothing}=nothing,
-    vector_type::Union{Symbol, Nothing}=nothing)
+    vector_type::Union{Symbol, Nothing}=nothing,
+    pattern::Union{Regex,Nothing}=nothing)
 
     if isnothing(vector_type)
         vector_symbol = :v
@@ -157,7 +158,7 @@ function generate_field(
     end
     
     # Load dataset info
-    ds = DataSet(dataset_dir; start_idx=start_idx, end_idx=end_idx)
+    ds = DataSet(dataset_dir; start_idx=start_idx, end_idx=end_idx, pattern=pattern)
 
     # Optional data splitting setup
     if !isnothing(split_by) && !isnothing(threshold) && !isnothing(split)
