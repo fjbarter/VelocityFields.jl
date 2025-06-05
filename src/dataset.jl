@@ -51,10 +51,12 @@ Throws an error if the resulting slice is invalid (out of bounds or empty).
 struct DataSet
     dir::String
     files::Vector{String}
+    pattern::Union{Nothing, Regex}
 
     function DataSet(dir::String;
                      start_idx::Union{Nothing,Int}=nothing,
-                     end_idx::Union{Nothing,Int}=nothing)
+                     end_idx::Union{Nothing,Int}=nothing,
+                     pattern::Union{Regex,Nothing}=nothing)
                      
         # validate directory
         if !isdir(dir)
@@ -62,7 +64,7 @@ struct DataSet
         end
 
         # get the full, sorted list
-        all_files = find_files(dir)
+        all_files = find_files(dir; pattern=pattern)
 
         # determine slice bounds
         i1 = isnothing(start_idx) ? 1              : start_idx
