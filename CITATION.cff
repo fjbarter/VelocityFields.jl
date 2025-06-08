@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Barter"
+  given-names: "Freddie"
+  orcid: "https://orcid.org/0009-0003-7909-9356"
+title: "VelocityFields.jl: Generating and Analysing Averaged Velocity Fields from Particle Datasets in Flexible Geometries"
+version: 0.1.0
+date-released: 2025-09-06
+url: "https://github.com/fjbarter/VelocityFields.jl"
