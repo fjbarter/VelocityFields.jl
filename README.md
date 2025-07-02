@@ -12,7 +12,6 @@ Above image: Time- and azimuthally averaged velocity field for the net motion of
 
 
 
-
 **Public API Overview:**  
 The package exposes a clean, high-level interface designed for users (e.g., Master’s students) who may not be familiar with the lower-level Julia intricacies. All functions automatically dispatch to the appropriate routines based on the provided geometry type.
 
